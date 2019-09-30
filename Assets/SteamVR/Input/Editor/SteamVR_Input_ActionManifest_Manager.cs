@@ -198,8 +198,7 @@ namespace Valve.VR
 
         protected static SteamVR_Input_BindingFile GetBindingFileObject(string path)
         {
-            path = CheckPath(path);
-            if (path == null)
+            if (path == null || !File.Exists(path))
             {
                 return null;
             }
@@ -242,6 +241,12 @@ namespace Valve.VR
             return path;
         }
 
+        ////// SteamVR Input always looks for a binding_url relative to the actions_file_path
+        private static string GetPathFromBindingUrl(string bindingUrl) {
+            if (SteamVR_Settings.instance.actionsFilePath.Length == 0) return bindingUrl;
+            return Path.Combine(Path.GetDirectoryName(SteamVR_Settings.instance.actionsFilePath), bindingUrl);
+        }
+
         protected static void WriteBindingFileObject(SteamVR_Input_BindingFile currentBindingFile, string currentBindingPath)
         {
             if (File.Exists(currentBindingPath))
@@ -270,7 +275,8 @@ namespace Valve.VR
                 }
                 else
                 {
-                    string currentBindingPath = currentActionsFile.default_bindings.First(binding => binding.controller_type == newDefaultPath.controller_type).binding_url;
+                    string currentBindingPath = GetPathFromBindingUrl(
+                        currentActionsFile.default_bindings.First(binding => binding.controller_type == newDefaultPath.controller_type).binding_url);
 
                     SteamVR_Input_BindingFile currentBindingFile = GetBindingFileObject(currentBindingPath);
                     if (currentBindingFile == null)
@@ -393,21 +399,22 @@ namespace Valve.VR
             for (int bindingIndex = 0; bindingIndex < currentActionsFile.default_bindings.Count; bindingIndex++)
             {
                 SteamVR_Input_ActionFile_DefaultBinding currentBinding = currentActionsFile.default_bindings[bindingIndex];
+                string bindingFilePath = GetPathFromBindingUrl(currentBinding.binding_url);
+                SteamVR_Input_BindingFile bindingFile = GetBindingFileObject(bindingFilePath);
 
-                SteamVR_Input_BindingFile bindingFile = GetBindingFileObject(currentBinding.binding_url);
                 if (bindingFile == null)
                 {
-                    if (CheckPath(currentBinding.binding_url) == null)
+                    if (!File.Exists(bindingFilePath))
                     {
                         if (verbose)
-                            Debug.Log("<b>[SteamVR Input]</b> Removing binding entry for missing file: '" + currentBinding.controller_type + "' at: " + currentBinding.binding_url);
+                            Debug.Log("<b>[SteamVR Input]</b> Removing binding entry for missing file: '" + currentBinding.controller_type + "' at: " + bindingFilePath);
 
                         currentActionsFile.default_bindings.RemoveAt(bindingIndex);
                         bindingIndex--;
                         continue;
                     }
 
-                    Debug.LogError("<b>[SteamVR Input]</b> Error parsing binding file for: '" + currentBinding.controller_type + "' at: " + currentBinding.binding_url);
+                    Debug.LogError("<b>[SteamVR Input]</b> Error parsing binding file for: '" + currentBinding.controller_type + "' at: " + bindingFilePath);
                     continue;
                 }
 
@@ -488,7 +495,7 @@ namespace Valve.VR
 
                 if (changed > 0)
                 {
-                    WriteBindingFileObject(bindingFile, currentBinding.binding_url);
+                    WriteBindingFileObject(bindingFile, bindingFilePath);
                 }
             }
 
@@ -675,7 +682,7 @@ namespace Valve.VR
         {
             foreach (var defaultBindingItem in SteamVR_Input.actionFile.default_bindings)
             {
-                string currentBindingPath = defaultBindingItem.binding_url;
+                string currentBindingPath = GetPathFromBindingUrl(defaultBindingItem.binding_url);
 
                 SteamVR_Input_BindingFile currentBindingFile = GetBindingFileObject(currentBindingPath);
                 if (currentBindingFile == null)
